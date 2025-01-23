@@ -20,11 +20,11 @@ def get_line_id(stop, direction):
     return None
 
 def load_user_data():
-    with open("user_data.json", "r") as f:
+    with open("userdata.json", "r") as f:
         return json.load(f)
 
 def save_user_data(data):
-    with open("user_data.json", "w") as f:
+    with open("userdata.json", "w") as f:
         json.dump(data, f)
 
 if __name__ == "__main__":
