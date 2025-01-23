@@ -192,7 +192,7 @@ async def get_line(update: Update, context: CallbackContext):
 
 
 async def check_for_updates(context: CallbackContext):
-    now = datetime.datetime.now()
+    now = datetime.datetime.now(tz=pytz.timezone("Europe/Ljubljana"))
     user_data = load_user_data()
     for user_id, watches in user_data.items():
         for watch in watches:
