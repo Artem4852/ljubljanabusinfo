@@ -19,7 +19,7 @@ dotenv.load_dotenv()
 
 token = os.getenv("TELEGRAM_API_TOKEN")
 
-WATCH_STOP_NAME, WATCH_CHOOSE_DIRECTION, WATCH_CHOOSE_DAY, WATCH_CHOOSE_TIME = range(4)
+WATCH_STOP_NAME, WATCH_CHOOSE_DIRECTION, WATCH_CHOOSE_TIME = range(3)
 DELETE_CHOOSE = range(1)
 
 def reply_markup(buttons):
@@ -62,40 +62,73 @@ async def watch_choose_direction(update: Update, context: CallbackContext):
     direction = "to_center" if direction == "To center" else "from_center"
     context.user_data['line'] = get_line_id(context.user_data['stop'], direction)
     context.user_data['selected_days'] = []
-    
+    context.user_data['buses'] = []
+    # buses stuff
+    scraper = Scraper()
+    buses = scraper.all_buses(context.user_data['line'])
+    # split into 4 cols
+    buses = [buses[i:i + 4] for i in range(0, len(buses), 4)]
     keyboard = [[
-        InlineKeyboardButton(day, callback_data=f"day_{days_all.index(day)}") 
-        for day in days_all[0:3]
-    ], [
-        InlineKeyboardButton(day, callback_data=f"day_{days_all.index(day)}")
-        for day in days_all[3:]
-    ]]
-    keyboard.append([InlineKeyboardButton("Confirm", callback_data="confirm_days")])
-    
+        InlineKeyboardButton(bus, callback_data=f"buses:bus_{bus}") 
+        for bus in row
+    ] for row in buses]
+    keyboard.append([InlineKeyboardButton("Confirm", callback_data="buses:confirm_buses")])
     await update.message.reply_text(
-        "Please select days (you can choose multiple):",
+        "Please select buses (you can choose multiple):",
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
     return WATCH_CHOOSE_TIME
 
-async def watch_day_callback(update: Update, context: CallbackContext):
+async def callback_handler(update: Update, context: CallbackContext):
     query = update.callback_query
-    if query.data == "confirm_days":
-        if not context.user_data.get('selected_days'):
-            await query.answer("Please select at least one day")
-            return WATCH_CHOOSE_DAY
-        await query.delete_message()
-        await query.message.reply_text(f"Type in the time in the format HH:MM.", reply_markup=cancel_markup)
-        return WATCH_CHOOSE_TIME
-    
-    day = int(query.data.replace("day_", ""))
-    if day not in context.user_data['selected_days']:
-        context.user_data['selected_days'].append(day)
-    else:
-        context.user_data['selected_days'].remove(day)
-    context.user_data['selected_days'].sort()
-    
-    await query.answer(f"Selected day(s): {', '.join(days_all[d] for d in context.user_data['selected_days'])}")
+    query_type, query_data = query.data.split(":")
+    print(query_type, query_data)
+    if query_type == "days":
+        if query_data == "confirm_days":
+            if not context.user_data.get('selected_days'):
+                await query.answer("Please select at least one day")
+                return
+            await query.delete_message()
+            await query.message.reply_text(f"Type in the time in the format HH:MM.", reply_markup=cancel_markup)
+            return
+        
+        day = int(query_data.replace("day_", ""))
+        if day not in context.user_data['selected_days']:
+            context.user_data['selected_days'].append(day)
+        else:
+            context.user_data['selected_days'].remove(day)
+        context.user_data['selected_days'].sort()
+        
+        await query.answer(f"Selected days: {', '.join(days_all[d] for d in context.user_data['selected_days'])}")
+    elif query_type == "buses":
+        if query_data == "confirm_buses":
+            if not context.user_data.get('buses'):
+                await query.answer("Please select at least one bus")
+                return
+            await query.delete_message()
+
+            keyboard = [[
+                InlineKeyboardButton(day, callback_data=f"days:day_{days_all.index(day)}") 
+                for day in days_all[0:3]
+            ], [
+                InlineKeyboardButton(day, callback_data=f"days:day_{days_all.index(day)}")
+                for day in days_all[3:]
+            ]]
+            keyboard.append([InlineKeyboardButton("Confirm", callback_data="days:confirm_days")])
+            
+            await query.message.reply_text(
+                "Please select days (you can choose multiple):",
+                reply_markup=InlineKeyboardMarkup(keyboard)
+            )
+            return WATCH_CHOOSE_TIME
+        
+        bus = query_data.replace("bus_", "")
+        if bus not in context.user_data['buses']:
+            context.user_data['buses'].append(bus)
+        else:
+            context.user_data['buses'].remove(bus)
+        
+        await query.answer(f"Selected buses: {', '.join(context.user_data['buses'])}")
 
 async def watch_choose_time(update: Update, context: CallbackContext):
     time = update.message.text
@@ -108,6 +141,7 @@ async def watch_choose_time(update: Update, context: CallbackContext):
 
     days = context.user_data['selected_days']
     stop = context.user_data['stop']
+    buses = context.user_data['buses']
 
     user_id = str(update.message.from_user.id)
 
@@ -117,12 +151,13 @@ async def watch_choose_time(update: Update, context: CallbackContext):
     user_data[user_id].append({
         "stop": stop,
         "days": days,
-        "time": time
+        "time": time,
+        "buses": buses
     })
 
     save_user_data(user_data)
 
-    await update.message.reply_text(f"Cool, I will give you arrival information from the stop {stop['name']} on {', '.join(days_all[d] for d in days)} at {time}.", reply_markup=standard_markup)
+    await update.message.reply_text(f"Cool, I will give you arrival information for buses {', '.join(buses)} from the stop {stop['name']} on {', '.join(days_all[d] for d in days)} at {time}.", reply_markup=standard_markup)
     return ConversationHandler.END
 
 async def list_watchings(update: Update, context: CallbackContext):
@@ -137,7 +172,8 @@ async def list_watchings(update: Update, context: CallbackContext):
         stop = watch['stop']
         days = watch['days']
         time = watch['time']
-        message += f"{stop['name']} - {', '.join(days_all[d] for d in days)} at {time}\n"
+        buses = watch['buses']
+        message += f"{stop['name']} - {', '.join(buses)} - {', '.join(days_all[d] for d in days)} at {time}\n"
     await update.message.reply_text(message, reply_markup=standard_markup)
 
 async def delete_watch(update: Update, context: CallbackContext):
@@ -152,7 +188,8 @@ async def delete_watch(update: Update, context: CallbackContext):
         stop = watch['stop']
         days = watch['days']
         time = watch['time']
-        message += f"{n+1}. {stop['name']} - {', '.join(days_all[d] for d in days)} at {time}\n"
+        buses = watch['buses']
+        message += f"{n+1}. {stop['name']} - {', '.join(buses)} - {', '.join(days_all[d] for d in days)} at {time}\n"
 
     message += "\nPlease type the number of the stop you want to delete."
     await update.message.reply_text(message, reply_markup=cancel_markup)
@@ -245,7 +282,7 @@ def main():
     application.add_handler(watch_handler)
     application.add_handler(delete_handler)
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, get_line))
-    application.add_handler(CallbackQueryHandler(watch_day_callback))
+    application.add_handler(CallbackQueryHandler(callback_handler))
 
     application.job_queue.run_once(check_for_updates, when=0)
     application.job_queue.run_repeating(check_for_updates, interval=60)

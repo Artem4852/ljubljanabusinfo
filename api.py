@@ -11,6 +11,13 @@ class Scraper():
         response = self.session.get(url)
         return response.json()
     
+    def all_buses(self, line):
+        data = self.get_line(line)
+        buses = []
+        for bus in data:
+            buses.append(bus[0]['key'])
+        return buses
+    
     def filter_line(self, line, key: int | str | list):
         data = self.get_line(line)
 
@@ -26,4 +33,4 @@ class Scraper():
         
 if __name__ == "__main__":
     scraper = Scraper()
-    print(scraper.filter_line("101051", [6, 11, "19I"]))
+    print(len(scraper.all_buses("600011")))
