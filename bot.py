@@ -236,6 +236,7 @@ async def check_for_updates(context: CallbackContext):
             stop = watch['stop']
             days = watch['days']
             time = watch['time']
+            buses = watch['buses']
 
             if now.weekday() not in days:
                 continue
@@ -244,7 +245,7 @@ async def check_for_updates(context: CallbackContext):
                 continue
 
             scraper = Scraper()
-            data = scraper.filter_line(stop['id'], [6, 11, "19I"])
+            data = scraper.filter_line(stop['id'], buses)
 
             message = f"Arrivals for line {stop['name']}:\n"
             print(data)
@@ -281,7 +282,7 @@ def main():
     application.add_handler(CommandHandler("list", list_watchings))
     application.add_handler(watch_handler)
     application.add_handler(delete_handler)
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, get_line))
+    # application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, get_line))
     application.add_handler(CallbackQueryHandler(callback_handler))
 
     application.job_queue.run_once(check_for_updates, when=0)
