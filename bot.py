@@ -63,10 +63,8 @@ async def watch_choose_direction(update: Update, context: CallbackContext):
     context.user_data['line'] = get_line_id(context.user_data['stop'], direction)
     context.user_data['selected_days'] = []
     context.user_data['buses'] = []
-    # buses stuff
     scraper = Scraper()
     buses = scraper.all_buses(context.user_data['line'])
-    # split into 4 cols
     buses = [buses[i:i + 4] for i in range(0, len(buses), 4)]
     keyboard = [[
         InlineKeyboardButton(bus, callback_data=f"buses:bus_{bus}") 
@@ -82,7 +80,7 @@ async def watch_choose_direction(update: Update, context: CallbackContext):
 async def callback_handler(update: Update, context: CallbackContext):
     query = update.callback_query
     query_type, query_data = query.data.split(":")
-    print(query_type, query_data)
+    # print(query_type, query_data)
     if query_type == "days":
         if query_data == "confirm_days":
             if not context.user_data.get('selected_days'):
@@ -130,7 +128,7 @@ async def callback_handler(update: Update, context: CallbackContext):
         
         await query.answer(f"Selected buses: {', '.join(context.user_data['buses'])}")
     else:
-        print(query_type, query_data, update.callback_query.message.id)
+        # print(query_type, query_data, update.callback_query.message.id)
 
         stop_id, stop_name, buses = query_data.split("_")
         buses = buses.split(",")
@@ -334,7 +332,7 @@ async def check_for_updates(context: CallbackContext):
             data = scraper.filter_line(stop['id'], buses)
 
             message = f"Arrivals for line {stop['name']}:\n"
-            print(data)
+            # print(data)
             for bus in data:
                 message += f"{bus[0]['key']} - {'; '.join([time['time'] for time in bus])}\n"
             await context.bot.send_message(user_id, message, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Update", callback_data=f"update:{stop['id']}_{stop['name']}_{','.join(buses)}")]]))
