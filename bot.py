@@ -187,6 +187,8 @@ async def list_watchings(update: Update, context: CallbackContext):
 
     message = "You are watching the following stops:\n"
     for watch in user_data[user_id]:
+        if watch == "early":
+            continue
         stop = watch['stop']
         days = watch['days']
         time = watch['time']
@@ -203,6 +205,8 @@ async def delete_watch(update: Update, context: CallbackContext):
 
     message = "You are watching the following stops:\n"
     for n, watch in enumerate(user_data[user_id]):
+        if watch == "early":
+            continue
         stop = watch['stop']
         days = watch['days']
         time = watch['time']
