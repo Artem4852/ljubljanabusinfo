@@ -23,10 +23,10 @@ WATCH_STOP_NAME, WATCH_CHOOSE_DIRECTION, WATCH_CHOOSE_TIME = range(3)
 DELETE_CHOOSE = range(1)
 
 def reply_markup(buttons):
-    return ReplyKeyboardMarkup([buttons], resize_keyboard=True, one_time_keyboard=True)
+    return ReplyKeyboardMarkup(buttons, resize_keyboard=True, one_time_keyboard=True)
 
-standard_markup = reply_markup(["/watch", "/list", "/delete"])
-cancel_markup = reply_markup(["/cancel"])
+standard_markup = reply_markup([["/watch", "/early"], ["/list", "/delete"]])
+cancel_markup = reply_markup([["/cancel"]])
 
 
 async def start(update: Update, context: CallbackContext):
@@ -44,7 +44,7 @@ async def watch_stop_name(update: Update, context: CallbackContext):
         return WATCH_STOP_NAME
 
     context.user_data['stop'] = match
-    await update.message.reply_text("Please choose the direction.", reply_markup=reply_markup(["To center", "From center", "/cancel"]))
+    await update.message.reply_text("Please choose the direction.", reply_markup=reply_markup([["To center", "From center"], ["/cancel"]]))
     return WATCH_CHOOSE_DIRECTION
 
 days_all = [
@@ -129,6 +129,24 @@ async def callback_handler(update: Update, context: CallbackContext):
             context.user_data['buses'].remove(bus)
         
         await query.answer(f"Selected buses: {', '.join(context.user_data['buses'])}")
+    else:
+        print(query_type, query_data, update.callback_query.message.id)
+
+        stop_id, stop_name, buses = query_data.split("_")
+        buses = buses.split(",")
+        
+        scraper = Scraper()
+        data = scraper.filter_line(stop_id, buses)
+
+        message = f"Arrivals for line {stop_name}:"
+        for bus in data:
+            message += f"\n{bus[0]['key']} - {'; '.join([time['time'] for time in bus])}"
+        try: 
+            await context.bot.edit_message_text(chat_id=update.effective_chat.id, message_id=update.effective_message.message_id,text=message, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Update", callback_data=f"update:{stop_id}_{stop_name}_{','.join(buses)}")]])
+            )
+        except:
+            pass
+
 
 async def watch_choose_time(update: Update, context: CallbackContext):
     time = update.message.text
@@ -167,13 +185,13 @@ async def list_watchings(update: Update, context: CallbackContext):
         await update.message.reply_text("You are not watching any stops.", reply_markup=standard_markup)
         return
 
-    message = "You are watching the following stops:\n\n"
+    message = "You are watching the following stops:\n"
     for watch in user_data[user_id]:
         stop = watch['stop']
         days = watch['days']
         time = watch['time']
         buses = watch['buses']
-        message += f"{stop['name']} - {', '.join(buses)} - {', '.join(days_all[d] for d in days)} at {time}\n"
+        message += f"\n{stop['name']} - {', '.join(buses)} - {', '.join(days_all[d] for d in days)} at {time}"
     await update.message.reply_text(message, reply_markup=standard_markup)
 
 async def delete_watch(update: Update, context: CallbackContext):
@@ -183,13 +201,13 @@ async def delete_watch(update: Update, context: CallbackContext):
         await update.message.reply_text("You are not watching any stops.", reply_markup=standard_markup)
         return
 
-    message = "You are watching the following stops:\n\n"
+    message = "You are watching the following stops:\n"
     for n, watch in enumerate(user_data[user_id]):
         stop = watch['stop']
         days = watch['days']
         time = watch['time']
         buses = watch['buses']
-        message += f"{n+1}. {stop['name']} - {', '.join(buses)} - {', '.join(days_all[d] for d in days)} at {time}\n"
+        message += f"\n{n+1}. {stop['name']} - {', '.join(buses)} - {', '.join(days_all[d] for d in days)} at {time}"
 
     message += "\nPlease type the number of the stop you want to delete."
     await update.message.reply_text(message, reply_markup=cancel_markup)
@@ -214,6 +232,66 @@ async def delete_choose(update: Update, context: CallbackContext):
     except (ValueError, IndexError):
         await update.message.reply_text("Invalid input. Please try again.", reply_markup=standard_markup)
         return DELETE_CHOOSE
+    
+async def load_early(update: Update, context: CallbackContext):
+    user_id = str(update.message.from_user.id)
+    user_data = load_user_data()
+    if user_id not in user_data or not user_data[user_id]:
+        await update.message.reply_text("You are not watching any stops.", reply_markup=standard_markup)
+        return
+    
+    now = datetime.datetime.now(tz=pytz.timezone("Europe/Ljubljana"))
+    closest = None
+    for watch in user_data[user_id]:
+        stop = watch['stop']
+        days = watch['days']
+        time = watch['time']
+        buses = watch['buses']
+
+        if now.weekday() not in days:
+            # await update.message.reply_text("No buses today.", reply_markup=standard_markup)
+            continue
+
+        time_obj = datetime.datetime.strptime(time, "%H:%M").replace(
+            year=now.year, 
+            month=now.month, 
+            day=now.day
+        )
+        tz = pytz.timezone("Europe/Ljubljana")
+        time_obj = tz.localize(time_obj)
+        if now < time_obj:
+            if not closest:
+                closest = {
+                    "stop": stop,
+                    "days": days,
+                    "time": time,
+                    "buses": buses,
+                    "dt": time_obj
+                }
+            elif closest["dt"]-now > time_obj-now:
+                closest = {
+                    "stop": stop,
+                    "days": days,
+                    "time": time,
+                    "buses": buses,
+                    "dt": time_obj
+                }
+        
+    if not closest:
+        await update.message.reply_text("No buses today.", reply_markup=standard_markup)
+        return
+        
+    scraper = Scraper()
+    data = scraper.filter_line(closest['stop']['id'], closest['buses'])
+
+    message = f"Arrivals for line {closest['stop']['name']}:"
+    for bus in data:
+        message += f"\n{bus[0]['key']} - {'; '.join([time['time'] for time in bus])}"
+    await update.message.reply_text(message, reply_markup=standard_markup)
+
+    user_data[user_id].insert(0, "early")
+    save_user_data(user_data)
+    return
 
 
 async def get_line(update: Update, context: CallbackContext):
@@ -222,9 +300,9 @@ async def get_line(update: Update, context: CallbackContext):
     scraper = Scraper()
     data = scraper.filter_line(line, [6, 11, "19I"])
     
-    message = f"Arrivals for line {line}:\n"
+    message = f"Arrivals for line {line}:"
     for bus in data:
-        message += f"{bus[0]['key']} - {'; '.join([time['time'] for time in bus])}\n"
+        message += f"\n{bus[0]['key']} - {'; '.join([time['time'] for time in bus])}"
     await update.message.reply_text(message, reply_markup=standard_markup)
 
 
@@ -232,6 +310,10 @@ async def check_for_updates(context: CallbackContext):
     now = datetime.datetime.now(tz=pytz.timezone("Europe/Ljubljana"))
     user_data = load_user_data()
     for user_id, watches in user_data.items():
+        if watches[0] == "early":
+            watches = watches[1:]
+            user_data[user_id] = watches
+            continue
         for watch in watches:
             stop = watch['stop']
             days = watch['days']
@@ -251,7 +333,9 @@ async def check_for_updates(context: CallbackContext):
             print(data)
             for bus in data:
                 message += f"{bus[0]['key']} - {'; '.join([time['time'] for time in bus])}\n"
-            await context.bot.send_message(user_id, message)
+            await context.bot.send_message(user_id, message, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Update", callback_data=f"update:{stop['id']}_{stop['name']}_{','.join(buses)}")]]))
+
+    save_user_data(user_data)
 
 async def cancel(update: Update, context: CallbackContext):
     await update.message.reply_text("Operation canceled.", reply_markup=standard_markup)
@@ -280,6 +364,7 @@ def main():
 
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("list", list_watchings))
+    application.add_handler(CommandHandler("early", load_early))
     application.add_handler(watch_handler)
     application.add_handler(delete_handler)
     # application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, get_line))
