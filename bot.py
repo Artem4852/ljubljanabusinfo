@@ -283,13 +283,14 @@ async def load_early(update: Update, context: CallbackContext):
         await update.message.reply_text("No buses today.", reply_markup=standard_markup)
         return
         
+    stop = closest['stop']
     scraper = Scraper()
     data = scraper.filter_line(closest['stop']['id'], closest['buses'])
 
     message = f"Arrivals for line {closest['stop']['name']}:"
     for bus in data:
         message += f"\n{bus[0]['key']} - {'; '.join([time['time'] for time in bus])}"
-    await update.message.reply_text(message, reply_markup=standard_markup)
+    await update.message.reply_text(message, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Update", callback_data=f"update:{stop['id']}_{stop['name']}_{','.join(closest['buses'])}")]]))
 
     user_data[user_id].insert(0, "early")
     save_user_data(user_data)
