@@ -33,4 +33,4 @@ class Scraper():
         
 if __name__ == "__main__":
     scraper = Scraper()
-    print(len(scraper.all_buses("600011")))
+    # print(scraper.get_line("Drama", "to_center"))

@@ -28,4 +28,5 @@ def save_user_data(data):
         json.dump(data, f)
 
 if __name__ == "__main__":
-    print(match_stop("drafwefweqwkinodq3iuq3ma"))
+    # print(match_stop("drafwefweqwkinodq3iuq3ma"))
+    print(get_line_id({"name": "Astra"}, "to_center"))

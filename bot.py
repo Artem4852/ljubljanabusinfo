@@ -60,11 +60,16 @@ days_all = [
 async def watch_choose_direction(update: Update, context: CallbackContext):
     direction = update.message.text
     direction = "to_center" if direction == "To center" else "from_center"
-    context.user_data['line'] = get_line_id(context.user_data['stop'], direction)
+    line = get_line_id(context.user_data['stop'], direction)
+    context.user_data['stop'] = {
+        "id": line,
+        "name": context.user_data['stop']['name'],
+        "direction": direction
+    }
     context.user_data['selected_days'] = []
     context.user_data['buses'] = []
     scraper = Scraper()
-    buses = scraper.all_buses(context.user_data['line'])
+    buses = scraper.all_buses(line)
     buses = [buses[i:i + 4] for i in range(0, len(buses), 4)]
     keyboard = [[
         InlineKeyboardButton(bus, callback_data=f"buses:bus_{bus}") 
