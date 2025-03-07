@@ -62,6 +62,12 @@ class Scraper():
         elif isinstance(key, list):
             return [bus for bus in data if str(bus[0]['key']) in key or bus[0]['key'] in key]
         
+    def sort_by_time(self, data: list):
+        data = [bus for group in data for bus in group]
+        data.sort(key=lambda x: x['minutes'])
+        return data
+        
 if __name__ == "__main__":
     scraper = Scraper()
-    # print(scraper.get_line("Drama", "to_center"))
+    data = scraper.filter_line("602021", ["6", "11", "19I"])
+    print(scraper.sort_by_time(data))

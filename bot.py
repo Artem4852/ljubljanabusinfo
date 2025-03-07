@@ -30,7 +30,8 @@ cancel_markup = reply_markup([["/cancel"]])
 
 
 async def start(update: Update, context: CallbackContext):
-    await update.message.reply_text("Hello, I am a bot that can provide you with information about buses in Ljubljana. Press /watch to get started.", reply_markup=standard_markup)
+    chat_id = update.message.chat_id
+    await update.message.reply_text(f"Hello, {chat_id} I am a bot that can provide you with information about buses in Ljubljana. Press /watch to get started.", reply_markup=standard_markup)
 
 async def watch_entry(update: Update, context: CallbackContext):
     await update.message.reply_text("Please send me the name of the bus stop.", reply_markup=cancel_markup)
@@ -140,10 +141,13 @@ async def callback_handler(update: Update, context: CallbackContext):
         
         scraper = Scraper()
         data = scraper.filter_line(stop_id, buses)
+        data = scraper.sort_by_time(data)
 
-        message = f"Arrivals for line {stop_name}:"
-        for bus in data:
-            message += f"\n{bus[0]['key']} - {'; '.join([time['time'] for time in bus])}"
+        message = f"Arrivals for line {stop_name} as of {datetime.datetime.now().strftime('%H:%M')}:\n"
+        message += f"┌ {data[0]['key']} - {data[0]['time']}\n"
+        for bus in data[1:-1]:
+            message += f" |- {bus['key']} - {bus['time']}\n"
+        message += f"└ {data[-1]['key']} - {data[-1]['time']}"
         try: 
             await context.bot.edit_message_text(chat_id=update.effective_chat.id, message_id=update.effective_message.message_id,text=message, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Update", callback_data=f"update:{stop_id}_{stop_name}_{','.join(buses)}")]])
             )
@@ -336,11 +340,16 @@ async def check_for_updates(context: CallbackContext):
 
             scraper = Scraper()
             data = scraper.filter_line(stop['id'], buses)
+            data = scraper.sort_by_time(data)
 
-            message = f"Arrivals for line {stop['name']}:\n"
+            message = f"Arrivals for line {stop['name']} as of {datetime.datetime.now().strftime('%H:%M')}:\n"
             # print(data)
-            for bus in data:
-                message += f"{bus[0]['key']} - {'; '.join([time['time'] for time in bus])}\n"
+            # for bus in data:
+            #     message += f"{bus[0]['key']} - {'; '.join([time['time'] for time in bus])}\n"
+            message += f"┌ {data[0]['key']} - {data[0]['time']}\n"
+            for bus in data[1:-1]:
+                message += f" |- {bus['key']} - {bus['time']}\n"
+            message += f"└ {data[-1]['key']} - {data[-1]['time']}"
             await context.bot.send_message(user_id, message, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Update", callback_data=f"update:{stop['id']}_{stop['name']}_{','.join(buses)}")]]))
 
     save_user_data(user_data)
