@@ -300,7 +300,7 @@ async def load_early(update: Update, context: CallbackContext):
     message = f"Arrivals for line {closest['stop']['name']} as of {datetime.datetime.now(tz=pytz.timezone("Europe/Ljubljana")).strftime('%H:%M')}:\n"
     message += f"┌ {data[0]['key']} - {data[0]['time']} - {data[0]['minutes']} minutes\n"
     for bus in data[1:-1]:
-        message += f"│- {bus['key']} - {bus['time']} - {bus['minutes']} minutes\n"
+        message += f" │- {bus['key']} - {bus['time']} - {bus['minutes']} minutes\n"
     message += f"└ {data[-1]['key']} - {data[-1]['time']} - {data[-1]['minutes']} minutes"
     await update.message.reply_text(message, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Update", callback_data=f"update:{stop['id']}_{stop['name']}_{','.join(closest['buses'])}")]]))
 
