@@ -143,7 +143,7 @@ async def callback_handler(update: Update, context: CallbackContext):
         data = scraper.filter_line(stop_id, buses)
         data = scraper.sort_by_time(data)
 
-        message = f"Arrivals for line {stop_name} as of {datetime.datetime.now().strftime('%H:%M')}:\n"
+        message = f"Arrivals for line {stop_name} as of {datetime.datetime.now(tz=pytz.timezone("Europe/Ljubljana")).strftime('%H:%M')}:\n"
         message += f"┌ {data[0]['key']} - {data[0]['time']} - {data[0]['minutes']} min\n"
         for bus in data[1:-1]:
             message += f" │- {bus['key']} - {bus['time']} - {bus['minutes']} min\n"
@@ -297,7 +297,7 @@ async def load_early(update: Update, context: CallbackContext):
     data = scraper.filter_line(closest['stop']['id'], closest['buses'])
     data = scraper.sort_by_time(data)
 
-    message = f"Arrivals for line {closest['stop']['name']} as of {datetime.datetime.now().strftime('%H:%M')}:\n"
+    message = f"Arrivals for line {closest['stop']['name']} as of {datetime.datetime.now(tz=pytz.timezone("Europe/Ljubljana")).strftime('%H:%M')}:\n"
     message += f"┌ {data[0]['key']} - {data[0]['time']} - {data[0]['minutes']} minutes\n"
     for bus in data[1:-1]:
         message += f"│- {bus['key']} - {bus['time']} - {bus['minutes']} minutes\n"
@@ -345,7 +345,8 @@ async def check_for_updates(context: CallbackContext):
             data = scraper.filter_line(stop['id'], buses)
             data = scraper.sort_by_time(data)
 
-            message = f"Arrivals for line {stop['name']} as of {datetime.datetime.now().strftime('%H:%M')}:\n"
+            message = f"Arrivals for line {stop['name']} as of {datetime.datetime.now(tz=pytz.timezone("Europe/Ljubljana")
+            ).strftime('%H:%M')}:\n"
             # print(data)
             # for bus in data:
             #     message += f"{bus[0]['key']} - {'; '.join([time['time'] for time in bus])}\n"
