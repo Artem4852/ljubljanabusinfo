@@ -295,12 +295,13 @@ async def load_early(update: Update, context: CallbackContext):
     stop = closest['stop']
     scraper = Scraper()
     data = scraper.filter_line(closest['stop']['id'], closest['buses'])
+    data = scraper.sort_by_time(data)
 
-    message = f"Arrivals for line {stop['name']} as of {datetime.datetime.now().strftime('%H:%M')}:\n"
-    message += f"┌ {data[0]['key']} - {data[0]['time']} - {data[0]['minutes']} min\n"
+    message = f"Arrivals for line {closest['stop']['name']} as of {datetime.datetime.now().strftime('%H:%M')}:\n"
+    message += f"┌ {data[0]['key']} - {data[0]['time']} - {data[0]['minutes']} minutes\n"
     for bus in data[1:-1]:
-        message += f" │- {bus['key']} - {bus['time']} - {bus['minutes']} min\n"
-    message += f"└ {data[-1]['key']} - {data[-1]['time']} - {data[-1]['minutes']} min"
+        message += f"│- {bus['key']} - {bus['time']} - {bus['minutes']} minutes\n"
+    message += f"└ {data[-1]['key']} - {data[-1]['time']} - {data[-1]['minutes']} minutes"
     await update.message.reply_text(message, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Update", callback_data=f"update:{stop['id']}_{stop['name']}_{','.join(closest['buses'])}")]]))
 
     user_data[user_id].insert(0, "early")
