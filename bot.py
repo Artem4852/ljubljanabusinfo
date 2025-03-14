@@ -143,7 +143,7 @@ async def callback_handler(update: Update, context: CallbackContext):
         data = scraper.filter_line(stop_id, buses)
         data = scraper.sort_by_time(data)
 
-        message = f"Arrivals for line {stop_name} as of {datetime.datetime.now(tz=pytz.timezone("Europe/Ljubljana")).strftime('%H:%M')}:\n"
+        message = f"Arrivals for line {stop_name} as of {datetime.datetime.now(tz=pytz.timezone('Europe/Ljubljana')).strftime('%H:%M')}:\n"
         message += f"┌ {data[0]['key']} - {data[0]['time']} - {data[0]['minutes']} min\n"
         for bus in data[1:-1]:
             message += f" │- {bus['key']} - {bus['time']} - {bus['minutes']} min\n"
@@ -250,9 +250,12 @@ async def load_early(update: Update, context: CallbackContext):
     if user_id not in user_data or not user_data[user_id]:
         await update.message.reply_text("You are not watching any stops.", reply_markup=standard_markup)
         return
+    elif "early" in user_data[user_id]:
+        await update.message.reply_text("You are already watching early buses.", reply_markup=standard_markup)
+        return
     
     now = datetime.datetime.now(tz=pytz.timezone("Europe/Ljubljana"))
-    closest = None
+    closest = []
     for watch in user_data[user_id]:
         stop = watch['stop']
         days = watch['days']
@@ -272,37 +275,46 @@ async def load_early(update: Update, context: CallbackContext):
         time_obj = tz.localize(time_obj)
         if now < time_obj:
             if not closest:
-                closest = {
+                closest = [{
                     "stop": stop,
                     "days": days,
                     "time": time,
                     "buses": buses,
                     "dt": time_obj
-                }
-            elif closest["dt"]-now > time_obj-now:
-                closest = {
+                }]
+            elif closest[0]["dt"]-now > time_obj-now:
+                closest = [{
                     "stop": stop,
                     "days": days,
                     "time": time,
                     "buses": buses,
                     "dt": time_obj
-                }
+                }]
+            elif closest[0]["dt"]-now == time_obj-now:
+                closest.append({
+                    "stop": stop,
+                    "days": days,
+                    "time": time,
+                    "buses": buses,
+                    "dt": time_obj
+                })
         
     if not closest:
         await update.message.reply_text("No buses today.", reply_markup=standard_markup)
         return
         
-    stop = closest['stop']
-    scraper = Scraper()
-    data = scraper.filter_line(closest['stop']['id'], closest['buses'])
-    data = scraper.sort_by_time(data)
+    for item in closest:
+        stop = item['stop']
+        scraper = Scraper()
+        data = scraper.filter_line(item['stop']['id'], item['buses'])
+        data = scraper.sort_by_time(data)
 
-    message = f"Arrivals for line {closest['stop']['name']} as of {datetime.datetime.now(tz=pytz.timezone("Europe/Ljubljana")).strftime('%H:%M')}:\n"
-    message += f"┌ {data[0]['key']} - {data[0]['time']} - {data[0]['minutes']} min\n"
-    for bus in data[1:-1]:
-        message += f" │- {bus['key']} - {bus['time']} - {bus['minutes']} min\n"
-    message += f"└ {data[-1]['key']} - {data[-1]['time']} - {data[-1]['minutes']} min"
-    await update.message.reply_text(message, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Update", callback_data=f"update:{stop['id']}_{stop['name']}_{','.join(closest['buses'])}")]]))
+        message = f"Arrivals for line {item['stop']['name']} as of {datetime.datetime.now(tz=pytz.timezone('Europe/Ljubljana')).strftime('%H:%M')}:\n"
+        message += f"┌ {data[0]['key']} - {data[0]['time']} - {data[0]['minutes']} min\n"
+        for bus in data[1:-1]:
+            message += f" │- {bus['key']} - {bus['time']} - {bus['minutes']} min\n"
+        message += f"└ {data[-1]['key']} - {data[-1]['time']} - {data[-1]['minutes']} min"
+        await update.message.reply_text(message, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Update", callback_data=f"update:{stop['id']}_{stop['name']}_{','.join(item['buses'])}")]]))
 
     user_data[user_id].insert(0, "early")
     save_user_data(user_data)
@@ -325,11 +337,11 @@ async def check_for_updates(context: CallbackContext):
     now = datetime.datetime.now(tz=pytz.timezone("Europe/Ljubljana"))
     user_data = load_user_data()
     for user_id, watches in user_data.items():
-        if watches[0] == "early":
-            watches = watches[1:]
-            user_data[user_id] = watches
-            continue
+        skip = False
         for watch in watches:
+            if watch == "early":
+                skip = True
+                continue
             stop = watch['stop']
             days = watch['days']
             time = watch['time']
@@ -341,12 +353,16 @@ async def check_for_updates(context: CallbackContext):
             if now.strftime("%H:%M") != time:
                 continue
 
+            if skip:
+                watches = watches[1:]
+                user_data[user_id] = watches
+                continue
+
             scraper = Scraper()
             data = scraper.filter_line(stop['id'], buses)
             data = scraper.sort_by_time(data)
 
-            message = f"Arrivals for line {stop['name']} as of {datetime.datetime.now(tz=pytz.timezone("Europe/Ljubljana")
-            ).strftime('%H:%M')}:\n"
+            message = f"Arrivals for line {stop['name']} as of {datetime.datetime.now(tz=pytz.timezone('Europe/Ljubljana')).strftime('%H:%M')}:\n"
             # print(data)
             # for bus in data:
             #     message += f"{bus[0]['key']} - {'; '.join([time['time'] for time in bus])}\n"
